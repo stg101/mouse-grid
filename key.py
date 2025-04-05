@@ -1,5 +1,5 @@
-
 import tkinter as tk
+import pyautogui # For clicking and screen size
 
 # --- Configuration ---
 ROW_KEYS = "QWERTASDFGZXCVB" # Keys defining Rows (e.g., Q*, W*, E*...)
@@ -20,26 +20,26 @@ highlight_oval_id = None
 
 ########################################
 
-last_key = None
-last_press_timestamp = None
-grid_open = False
-
-def on_key(event):
-    global last_key, last_press_timestamp, grid_open
-    print(f"Key pressed: {event.keysym}")
-    if event.keysym == "Escape":
-        root.destroy()
-
-    if (last_press_timestamp is not None
-        and event.time - last_press_timestamp < 400
-        and last_key == 'ISO_Level3_Shift'
-        and event.keysym == 'Tab'):
-        grid_open = True
-
-    last_key = event.keysym
-    last_press_timestamp = event.time
-    print(grid_open)
-    print(event.time)
+# last_key = None
+# last_press_timestamp = None
+# grid_open = False
+#
+# def on_key(event):
+#     global last_key, last_press_timestamp, grid_open
+#     print(f"Key pressed: {event.keysym}")
+#     if event.keysym == "Escape":
+#         root.destroy()
+#
+#     if (last_press_timestamp is not None
+#         and event.time - last_press_timestamp < 400
+#         and last_key == 'ISO_Level3_Shift'
+#         and event.keysym == 'Tab'):
+#         grid_open = True
+#
+#     last_key = event.keysym
+#     last_press_timestamp = event.time
+#     print(grid_open)
+#     print(event.time)
 
 def calculate_and_draw_labels(canvas, screen_width, screen_height):
     """Calculates grid points, stores them, and draws labels."""
@@ -79,6 +79,112 @@ def calculate_and_draw_labels(canvas, screen_width, screen_height):
 
     print(f"Calculated and drew {len(grid_points)} labels.")
 
+def update_highlight(canvas, target_label=None):
+    """Draws or clears the highlight circle."""
+    global highlight_oval_id
+
+    # Delete previous highlight if it exists
+    if highlight_oval_id:
+        canvas.delete(highlight_oval_id)
+        highlight_oval_id = None
+
+    # Draw new highlight if a valid label is provided
+    if target_label and target_label in grid_points:
+        x, y = grid_points[target_label]
+        # Draw circle with "highlight" tag
+        highlight_oval_id = canvas.create_oval(
+            x - HIGHLIGHT_RADIUS, y - HIGHLIGHT_RADIUS,
+            x + HIGHLIGHT_RADIUS, y + HIGHLIGHT_RADIUS,
+            outline=HIGHLIGHT_COLOR, width=2, tags="highlight"
+        )
+        print(f"Highlighting {target_label} at ({x},{y})")
+
+
+def on_key(event, root, canvas):
+    """Handles key presses for coordinate input, clicking, or closing."""
+    global input_sequence, grid_points, highlight_oval_id # Access global state
+
+    key_sym = event.keysym
+    key_char = event.char.upper() # Use char for letters, convert to upper
+
+    print(f"--- KeyPress: keysym='{key_sym}', char='{key_char}', Current sequence='{input_sequence}' ---")
+
+    if key_sym == 'Escape':
+        print("Escape pressed. Destroying window.")
+        root.destroy()
+        return
+
+    key_to_check = key_char if key_char and key_char.isalpha() else "" # Only consider alpha chars
+
+    if not key_to_check: # Ignore non-alpha keys (like Shift, Ctrl etc.) for sequence
+        print("Ignoring non-alpha key for sequence.")
+        return
+
+    is_row_key = key_to_check in ROW_KEYS
+    is_col_key = key_to_check in COL_KEYS
+
+    # --- Input Sequence Logic ---
+    if len(input_sequence) == 0:
+        update_highlight(canvas) # Clear any previous highlight
+        if is_row_key:
+            input_sequence = key_to_check
+            print(f"First key '{key_to_check}' accepted.")
+        else:
+            print(f"Invalid first key '{key_to_check}'.")
+            input_sequence = "" # Reset
+
+    elif len(input_sequence) == 1:
+        if is_col_key:
+            input_sequence += key_to_check
+            target_label = input_sequence # Already uppercase
+            print(f"Second key '{key_to_check}' accepted. Target: '{target_label}'")
+
+            if target_label in grid_points:
+                update_highlight(canvas, target_label) # Show highlight
+                root.update() # Force redraw
+                root.after(50) # Short pause
+
+                target_x, target_y = grid_points[target_label]
+                print(f"Coordinates for '{target_label}': ({target_x}, {target_y})")
+
+                print("Withdrawing window...")
+                root.withdraw()
+                root.after(50) # Ensure withdrawn before click
+
+                try:
+                    print(f"*** Executing pyautogui.click({target_x}, {target_y}) ***")
+                    pyautogui.click(target_x, target_y)
+                    print("*** Click executed. ***")
+                except Exception as e:
+                    print(f"!!! Error during pyautogui.click: {e} !!!")
+                    # Optionally show window again if click fails
+                    # root.deiconify()
+                    # root.focus_force()
+
+                # Reset state AFTER action
+                input_sequence = ""
+                update_highlight(canvas) # Clear highlight visually
+                # Window remains hidden. Need manual restart or activation key.
+
+            else: # Should not happen if keys are validated
+                print(f"Error: Target label '{target_label}' somehow invalid.")
+                input_sequence = ""
+                update_highlight(canvas) # Clear highlight
+
+        else: # Invalid second key
+            print(f"Invalid second key '{key_to_check}'. Resetting.")
+            input_sequence = ""
+            update_highlight(canvas) # Clear highlight
+    else: # Sequence already complete, reset on new key press
+         print("Sequence already complete or > 1 key. Resetting.")
+         input_sequence = ""
+         update_highlight(canvas) # Clear highlight
+         # Treat the current valid key as the potential start of a new sequence?
+         if is_row_key:
+             input_sequence = key_to_check
+             print(f"Starting new sequence with '{key_to_check}'.")
+         else:
+             print(f"Invalid key '{key_to_check}' to start new sequence.")
 
 root = tk.Tk()
 root.attributes('-fullscreen', True)
@@ -102,6 +208,6 @@ canvas.pack()
 calculate_and_draw_labels(canvas, screen_width, screen_height)
 
 
-root.bind("<Key>", on_key)
+root.bind('<Key>', lambda event: on_key(event, root, canvas))
 root.mainloop()
 
