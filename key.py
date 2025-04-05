@@ -134,7 +134,7 @@ def on_key(event, root, canvas):
 
                 print("Withdrawing window...")
                 root.withdraw()
-                root.after(100, lambda: click(target_x, target_y))
+                root.after(50, lambda: click(target_x, target_y))
                 input_sequence = ""
             else: # Should not happen if keys are validated
                 print(f"Error: Target label '{target_label}' somehow invalid.")
