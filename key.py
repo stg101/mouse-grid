@@ -3,8 +3,8 @@ import time
 import pyautogui # For clicking and screen size
 
 # --- Configuration ---
-ROW_KEYS = "QWERTASDFGZXCVB" # Keys defining Rows (e.g., Q*, W*, E*...)
-COL_KEYS = "YUIOPHJKLNM" # Keys defining Columns (e.g., *H, *J, *K...)
+ROW_KEYS = "QWERTASDFGZXCVBYUIOPHJK" # Keys defining Rows (e.g., Q*, W*, E*...)
+COL_KEYS = "YUIOPHJKLNMQWERTASDFGZX" # Keys defining Columns (e.g., *H, *J, *K...)
 
 # Appearance
 GRID_ALPHA = 0.5       # Transparency (0.0=invisible, 1.0=opaque) - Set in original code
@@ -20,6 +20,17 @@ grid_points = {} # Dictionary to store { "label": (x, y) }
 highlight_oval_id = None
 
 ########################################
+
+def float_range(start, stop=None, step=1.0):
+    if stop is None:
+        # Only one argument provided; treat it like range(stop)
+        stop = start
+        start = 0.0
+
+    current = start
+    while (step > 0 and current < stop) or (step < 0 and current > stop):
+        yield round(current, 10)  # rounding to avoid floating point precision issues
+        current += step
 
 def calculate_and_draw_labels(canvas, screen_width, screen_height):
     """Calculates grid points, stores them, and draws labels."""
@@ -52,10 +63,10 @@ def calculate_and_draw_labels(canvas, screen_width, screen_height):
             # Draw the uppercase label text with a specific tag
             canvas.create_text(x, y, text=label, fill=LABEL_COLOR, font=LABEL_FONT, tags="labels")
 
-    for x in range(0, screen_width, int(x_spacing)):
-        canvas.create_line(x, 0, x, screen_height, fill=line_color, width=line_width, tags="gridline")
-    for y in range(0, screen_height, int(y_spacing)):
-        canvas.create_line(0, y, screen_width, y, fill=line_color, width=line_width, tags="gridline")
+    for x in float_range(0, screen_width, x_spacing):
+        canvas.create_line(int(x), 0, int(x), screen_height, fill=line_color, width=line_width, tags="gridline")
+    for y in float_range(0, screen_height, y_spacing):
+        canvas.create_line(0, int(y), screen_width, int(y), fill=line_color, width=line_width, tags="gridline")
 
     print(f"Calculated and drew {len(grid_points)} labels.")
 
