@@ -1,87 +1,153 @@
 import tkinter as tk
 import time
-import pyautogui # For clicking and screen size
+import pyautogui # For clicking, moving, and screen size
 
 # --- Configuration ---
-ROW_KEYS = "QWERTASDFGZXCVBYUIOPHJK" # Keys defining Rows (e.g., Q*, W*, E*...)
-COL_KEYS = "YUIOPHJKLNMQWERTASDFGZX" # Keys defining Columns (e.g., *H, *J, *K...)
+# Main Grid Keys (Example: 23 rows, 23 columns)
+ROW_KEYS = "QWERTASDFGZXCVBYUIOPHJK"
+COL_KEYS = "YUIOPHJKLNMQWERTASDFGZX"
+
+# Sub-Grid Selection Keys (24 unique letters for a 4x6 grid)
+# Using alphabetical order for simplicity. Ensure no numbers are used.
+SUB_GRID_SELECT_KEYS = "ABCDEFGHIJKLMNOPQRSTUVWX"
+# Define the sub-grid dimensions implicitly based on the keys
+# (Length of SUB_GRID_SELECT_KEYS should ideally match rows * cols)
+SUB_GRID_ROWS = 4
+SUB_GRID_COLS = 6
+if len(SUB_GRID_SELECT_KEYS) != SUB_GRID_ROWS * SUB_GRID_COLS:
+    print(f"Warning: SUB_GRID_SELECT_KEYS length ({len(SUB_GRID_SELECT_KEYS)}) "
+          f"doesn't match SUB_GRID_ROWS*COLS ({SUB_GRID_ROWS*SUB_GRID_COLS}). Adjust keys or dimensions.")
+    # You might want to raise an error or adjust dimensions/keys here
 
 # Appearance
-GRID_ALPHA = 0.5       # Transparency (0.0=invisible, 1.0=opaque) - Set in original code
-GRID_BG = 'black'      # Background of the overlay window - Set in original code
+GRID_ALPHA = 0.5
+GRID_BG = 'black'
 LABEL_COLOR = "white"
-LABEL_FONT = ("Arial", 12, "bold") # Increased font size
+LABEL_FONT = ("Arial", 10, "bold")
+SUB_LABEL_COLOR = "yellow"
+SUB_LABEL_FONT = ("Arial", 9, "bold") # Slightly larger maybe for single letters
 HIGHLIGHT_COLOR = "red"
-HIGHLIGHT_RADIUS = 12  # Slightly bigger highlight
+HIGHLIGHT_RADIUS = 10
 
-# --- Global State (Simpler integration, less ideal than a class) ---
-input_sequence = ""
-grid_points = {} # Dictionary to store { "label": (x, y) }
-highlight_oval_id = None
+# --- Global State ---
+input_sequence = "" # Still needed for the main grid selection
+grid_points = {} # Stores { "MAIN_LABEL": (cx, cy, x_min, y_min, x_max, y_max) }
+sub_grid_points = {} # Stores { "SUB_SELECT_KEY": (x, y) }
+selected_main_cell_bounds = None # Stores (x_min, y_min, x_max, y_max) of the chosen main cell
+
+# Selection Mode Constants
+MODE_MAIN_GRID = "main"
+MODE_SUB_GRID = "sub"
+selection_mode = MODE_MAIN_GRID # Start in main grid selection mode
 
 ########################################
 
 def float_range(start, stop=None, step=1.0):
+    # Helper for floating point ranges (used for drawing grid lines)
     if stop is None:
-        # Only one argument provided; treat it like range(stop)
         stop = start
         start = 0.0
-
     current = start
     while (step > 0 and current < stop) or (step < 0 and current > stop):
-        yield round(current, 10)  # rounding to avoid floating point precision issues
+        yield round(current, 10)
         current += step
 
-def calculate_and_draw_labels(canvas, screen_width, screen_height):
-    """Calculates grid points, stores them, and draws labels."""
-    global grid_points # Modify global dictionary
+def calculate_and_draw_main_grid(canvas, screen_width, screen_height):
+    """Calculates main grid points/bounds, stores them, and draws labels/lines."""
+    global grid_points
 
-    print("Calculating and drawing labels...")
-    grid_points = {} # Clear previous points
+    print("Calculating and drawing MAIN grid...")
+    grid_points = {}
     num_rows = len(ROW_KEYS)
     num_cols = len(COL_KEYS)
     line_color = "white"
     line_width = 1
 
-    # Calculate spacing
-    x_spacing = screen_width / (num_cols)
-    y_spacing = screen_height / (num_rows)
+    x_spacing = screen_width / num_cols
+    y_spacing = screen_height / num_rows
     half_x_spacing = x_spacing / 2
     half_y_spacing = y_spacing / 2
 
-    # Clear only old labels and highlights if they exist
-    canvas.delete("labels")
-    canvas.delete("highlight") # Ensure no old highlight persists
-    canvas.delete("gridline")
+    canvas.delete("all")
+
+    for x in float_range(0, screen_width + 1, x_spacing):
+        canvas.create_line(int(x), 0, int(x), screen_height, fill=line_color, width=line_width, tags="gridline")
+    for y in float_range(0, screen_height + 1, y_spacing):
+        canvas.create_line(0, int(y), screen_width, int(y), fill=line_color, width=line_width, tags="gridline")
 
     for r_idx, r_key in enumerate(ROW_KEYS):
         for c_idx, c_key in enumerate(COL_KEYS):
             label = r_key.upper() + c_key.upper()
-            x = int(x_spacing * (c_idx + 1) - half_x_spacing)
-            y = int(y_spacing * (r_idx + 1) - half_y_spacing)
-            grid_points[label] = (x, y)
-            # Draw the uppercase label text with a specific tag
-            canvas.create_text(x, y, text=label, fill=LABEL_COLOR, font=LABEL_FONT, tags="labels")
+            cx = x_spacing * (c_idx + 0.5)
+            cy = y_spacing * (r_idx + 0.5)
+            x_min = cx - half_x_spacing
+            y_min = cy - half_y_spacing
+            x_max = cx + half_x_spacing
+            y_max = cy + half_y_spacing
+            grid_points[label] = (int(cx), int(cy), int(x_min), int(y_min), int(x_max), int(y_max))
+            canvas.create_text(int(cx), int(cy), text=label, fill=LABEL_COLOR, font=LABEL_FONT, tags="labels")
 
-    for x in float_range(0, screen_width, x_spacing):
-        canvas.create_line(int(x), 0, int(x), screen_height, fill=line_color, width=line_width, tags="gridline")
-    for y in float_range(0, screen_height, y_spacing):
-        canvas.create_line(0, int(y), screen_width, int(y), fill=line_color, width=line_width, tags="gridline")
+    print(f"Calculated and drew {len(grid_points)} main grid labels and lines.")
 
-    print(f"Calculated and drew {len(grid_points)} labels.")
+def draw_sub_grid(canvas, x_min, y_min, x_max, y_max):
+    """Clears main grid visuals and draws the sub-grid with single-letter labels."""
+    global sub_grid_points
 
-def click(target_x, target_y):
-    try:
-        print(f"*** Executing pyautogui.click({target_x}, {target_y}) ***")
-        pyautogui.click(target_x, target_y)
-        print("*** Click executed. ***")
-    except Exception as e:
-        print(f"!!! Error during pyautogui.click: {e} !!!")
-        # Optionally show window again if click fails
-        # root.deiconify()
-        # root.focus_force()
+    print(f"Drawing SUB grid within bounds: ({x_min},{y_min}) to ({x_max},{y_max})")
+    sub_grid_points = {} # Clear previous sub-grid points
 
-def move(target_x, target_y):
+    # Clear main grid elements
+    canvas.delete("labels")
+    canvas.delete("gridline")
+
+    sub_width = x_max - x_min
+    sub_height = y_max - y_min
+
+    # Calculate spacing within the sub-grid area based on defined dimensions
+    sub_x_spacing = sub_width / SUB_GRID_COLS
+    sub_y_spacing = sub_height / SUB_GRID_ROWS
+
+    select_key_index = 0 # Index into SUB_GRID_SELECT_KEYS
+
+    # Calculate positions and draw labels using the defined grid structure
+    for r_idx in range(SUB_GRID_ROWS):
+        for c_idx in range(SUB_GRID_COLS):
+            if select_key_index < len(SUB_GRID_SELECT_KEYS):
+                sub_label = SUB_GRID_SELECT_KEYS[select_key_index] # Get the single letter
+
+                # Calculate center point *relative* to the sub-grid top-left
+                sub_cx = x_min + sub_x_spacing * (c_idx + 0.5)
+                sub_cy = y_min + sub_y_spacing * (r_idx + 0.5)
+
+                sub_grid_points[sub_label] = (int(sub_cx), int(sub_cy))
+
+                # Draw the single-letter sub-label text
+                canvas.create_text(int(sub_cx), int(sub_cy), text=sub_label, fill=SUB_LABEL_COLOR, font=SUB_LABEL_FONT, tags="sub_labels")
+
+                select_key_index += 1
+            else:
+                # Stop if we have more grid positions than keys defined
+                print("Warning: Ran out of sub-grid keys before filling all positions.")
+                break
+        if select_key_index >= len(SUB_GRID_SELECT_KEYS):
+            break
+
+
+    # Optionally draw sub-grid lines
+    line_color = "grey"
+    for i in range(1, SUB_GRID_COLS):
+        x = x_min + i * sub_x_spacing
+        canvas.create_line(int(x), y_min, int(x), y_max, fill=line_color, width=1, tags="sub_gridline")
+    for i in range(1, SUB_GRID_ROWS):
+        y = y_min + i * sub_y_spacing
+        canvas.create_line(x_min, int(y), x_max, int(y), fill=line_color, width=1, tags="sub_gridline")
+
+
+    print(f"Drew {len(sub_grid_points)} sub grid labels using keys: {SUB_GRID_SELECT_KEYS[:len(sub_grid_points)]}")
+
+
+def move_mouse(target_x, target_y):
+    """Moves the mouse to the target coordinates."""
     try:
         print(f"*** Executing pyautogui.moveTo({target_x}, {target_y}) ***")
         pyautogui.moveTo(target_x, target_y)
@@ -90,77 +156,101 @@ def move(target_x, target_y):
         print(f"!!! Error during pyautogui.moveTo: {e} !!!")
 
 def on_key(event, root, canvas):
-    """Handles key presses for coordinate input, clicking, or closing."""
-    global input_sequence, grid_points, highlight_oval_id, handler # Access global state
+    """Handles key presses for main grid or sub-grid selection."""
+    global input_sequence, grid_points, sub_grid_points, selection_mode, selected_main_cell_bounds
 
     key_sym = event.keysym
     key_char = event.char.upper() # Use char for letters, convert to upper
 
-    print(f"--- KeyPress: keysym='{key_sym}', char='{key_char}', Current sequence='{input_sequence}' ---")
+    print(f"--- KeyPress: keysym='{key_sym}', char='{key_char}', Mode='{selection_mode}', Seq='{input_sequence}' ---")
 
     if key_sym == 'Escape':
         print("Escape pressed. Destroying window.")
         root.destroy()
         return
 
-    key_to_check = key_char if key_char and key_char.isalpha() else "" # Only consider alpha chars
+    # Use the uppercase character for checking, if it's an alphabet character
+    key_to_check = key_char if key_char and key_char.isalpha() else ""
 
-    if not key_to_check: # Ignore non-alpha keys (like Shift, Ctrl etc.) for sequence
-        print("Ignoring non-alpha key for sequence.")
+    if not key_to_check:
+        print("Ignoring non-alpha/non-relevant key.")
         return
 
-    is_row_key = key_to_check in ROW_KEYS
-    is_col_key = key_to_check in COL_KEYS
+    # --- Main Grid Selection Logic (Requires 2 keys) ---
+    if selection_mode == MODE_MAIN_GRID:
+        is_row_key = key_to_check in ROW_KEYS
+        is_col_key = key_to_check in COL_KEYS
 
-    # --- Input Sequence Logic ---
-    if len(input_sequence) == 0:
-        if is_row_key:
-            input_sequence = key_to_check
-            print(f"First key '{key_to_check}' accepted.")
-        else:
-            print(f"Invalid first key '{key_to_check}'.")
-            input_sequence = "" # Reset
+        if len(input_sequence) == 0:
+            if is_row_key:
+                input_sequence = key_to_check
+                print(f"Main Grid: First key '{key_to_check}' accepted.")
+            else:
+                print(f"Main Grid: Invalid first key '{key_to_check}'. Needs row key from [{ROW_KEYS}].")
+                input_sequence = ""
 
-    elif len(input_sequence) == 1:
-        if is_col_key:
-            input_sequence += key_to_check
-            target_label = input_sequence # Already uppercase
-            print(f"Second key '{key_to_check}' accepted. Target: '{target_label}'")
+        elif len(input_sequence) == 1:
+            if is_col_key:
+                input_sequence += key_to_check
+                target_label = input_sequence
+                print(f"Main Grid: Second key '{key_to_check}' accepted. Target Cell: '{target_label}'")
 
-            if target_label in grid_points:
-                target_x, target_y = grid_points[target_label]
-                print(f"Coordinates for '{target_label}': ({target_x}, {target_y})")
+                if target_label in grid_points:
+                    cx, cy, x_min, y_min, x_max, y_max = grid_points[target_label]
+                    selected_main_cell_bounds = (x_min, y_min, x_max, y_max)
+                    print(f"Main Cell '{target_label}' bounds: ({x_min},{y_min}) to ({x_max},{y_max})")
+
+                    draw_sub_grid(canvas, x_min, y_min, x_max, y_max)
+                    selection_mode = MODE_SUB_GRID
+                    input_sequence = "" # Reset sequence for next operation (which is now sub-grid)
+                    print(f"--> Switched to SUB_GRID selection mode. Press a key from [{SUB_GRID_SELECT_KEYS}]")
+
+                else:
+                    print(f"Error: Main Grid Target label '{target_label}' not found.")
+                    input_sequence = ""
+                    selection_mode = MODE_MAIN_GRID
+
+            else: # Invalid second key for main grid
+                print(f"Main Grid: Invalid second key '{key_to_check}'. Needs col key from [{COL_KEYS}]. Resetting.")
+                input_sequence = ""
+        # No 'else' needed here as sequence length is handled
+
+    # --- Sub-Grid Selection Logic (Requires 1 key) ---
+    elif selection_mode == MODE_SUB_GRID:
+        # Check if the single pressed key is one of the valid sub-grid selection keys
+        if key_to_check in SUB_GRID_SELECT_KEYS:
+            target_sub_label = key_to_check # The key itself is the label
+            print(f"Sub Grid: Key '{target_sub_label}' accepted.")
+
+            if target_sub_label in sub_grid_points:
+                target_x, target_y = sub_grid_points[target_sub_label]
+                print(f"Final Coordinates for '{target_sub_label}': ({target_x}, {target_y})")
 
                 print("Withdrawing window...")
                 root.withdraw()
-                root.after(50, lambda: move(target_x, target_y))
+
+                # Schedule mouse move and window destruction
+                root.after(50, lambda: move_mouse(target_x, target_y))
+                root.after(150, root.destroy)
+
+                # Reset state (though window will close)
                 input_sequence = ""
-            else: # Should not happen if keys are validated
-                print(f"Error: Target label '{target_label}' somehow invalid.")
-                input_sequence = ""
+                selection_mode = MODE_MAIN_GRID
 
-        else: # Invalid second key
-            print(f"Invalid second key '{key_to_check}'. Resetting.")
-            input_sequence = ""
+            else:
+                # This case should ideally not happen if draw_sub_grid worked correctly
+                print(f"Error: Sub Grid Key '{target_sub_label}' pressed but not found in sub_grid_points.")
+                # Stay in sub-grid mode, wait for another valid key
+        else:
+            print(f"Sub Grid: Invalid key '{key_to_check}'. Waiting for a key from [{SUB_GRID_SELECT_KEYS}]")
+            # Stay in sub-grid mode and wait
 
-        root.after(50, root.destroy)
-    else: # Sequence already complete, reset on new key press
-         print("Sequence already complete or > 1 key. Resetting.")
-         input_sequence = ""
-         update_highlight(canvas) # Clear highlight
-         # Treat the current valid key as the potential start of a new sequence?
-         if is_row_key:
-             input_sequence = key_to_check
-             print(f"Starting new sequence with '{key_to_check}'.")
-         else:
-             print(f"Invalid key '{key_to_check}' to start new sequence.")
-
-
+# --- Main Execution ---
 root = tk.Tk()
 root.attributes('-fullscreen', True)
-root.wait_visibility(root) # Wait for window manager interaction
-root.wm_attributes("-alpha", 0.5) # Set transparency
-root.attributes("-topmost", True) # Keep window on top
+root.wait_visibility(root)
+root.wm_attributes("-alpha", GRID_ALPHA)
+root.attributes("-topmost", True)
 
 try:
     screen_width, screen_height = pyautogui.size()
@@ -175,11 +265,15 @@ except Exception as e:
 canvas = tk.Canvas(root, width=screen_width, height=screen_height,
                    bg=GRID_BG, highlightthickness=0)
 canvas.pack()
-calculate_and_draw_labels(canvas, screen_width, screen_height)
 
+calculate_and_draw_main_grid(canvas, screen_width, screen_height)
 
 root.bind('<Key>', lambda event: on_key(event, root, canvas))
+
+print("\n--- Ready for Input ---")
+print(f"Mode: {selection_mode}")
+print(f"Main Row Keys: {ROW_KEYS}")
+print(f"Main Col Keys: {COL_KEYS}")
+print(f"Sub-Grid Select Keys ({SUB_GRID_ROWS}x{SUB_GRID_COLS}): {SUB_GRID_SELECT_KEYS}")
+
 root.mainloop()
-
-
-
