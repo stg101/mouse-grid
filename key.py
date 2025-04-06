@@ -1,5 +1,3 @@
-#!/bin/bash
-
 import tkinter as tk
 import time
 import pyautogui # For clicking and screen size
