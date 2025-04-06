@@ -7,13 +7,12 @@ import pyautogui # For clicking, moving, and screen size
 ROW_KEYS = "QWERTASDFGZXCVBYUIOPHJK"
 COL_KEYS = "YUIOPHJKLNMQWERTASDFGZX"
 
-# Sub-Grid Selection Keys (24 unique letters for a 4x6 grid)
+# Sub-Grid Selection Keys (24 unique letters for a 6 rows x 4 columns grid)
 # Using alphabetical order for simplicity. Ensure no numbers are used.
 SUB_GRID_SELECT_KEYS = "ABCDEFGHIJKLMNOPQRSTUVWX"
-# Define the sub-grid dimensions implicitly based on the keys
-# (Length of SUB_GRID_SELECT_KEYS should ideally match rows * cols)
-SUB_GRID_ROWS = 4
-SUB_GRID_COLS = 6
+# Define the sub-grid dimensions explicitly (<<< CHANGED HERE >>>)
+SUB_GRID_ROWS = 6 # Now 6 rows
+SUB_GRID_COLS = 4 # Now 4 columns
 if len(SUB_GRID_SELECT_KEYS) != SUB_GRID_ROWS * SUB_GRID_COLS:
     print(f"Warning: SUB_GRID_SELECT_KEYS length ({len(SUB_GRID_SELECT_KEYS)}) "
           f"doesn't match SUB_GRID_ROWS*COLS ({SUB_GRID_ROWS*SUB_GRID_COLS}). Adjust keys or dimensions.")
@@ -25,7 +24,7 @@ GRID_BG = 'black'
 LABEL_COLOR = "white"
 LABEL_FONT = ("Arial", 10, "bold")
 SUB_LABEL_COLOR = "yellow"
-SUB_LABEL_FONT = ("Arial", 9, "bold") # Slightly larger maybe for single letters
+SUB_LABEL_FONT = ("Arial", 9, "bold")
 HIGHLIGHT_COLOR = "red"
 HIGHLIGHT_RADIUS = 10
 
@@ -93,7 +92,7 @@ def draw_sub_grid(canvas, x_min, y_min, x_max, y_max):
     """Clears main grid visuals and draws the sub-grid with single-letter labels."""
     global sub_grid_points
 
-    print(f"Drawing SUB grid within bounds: ({x_min},{y_min}) to ({x_max},{y_max})")
+    print(f"Drawing SUB grid ({SUB_GRID_ROWS} rows x {SUB_GRID_COLS} cols) within bounds: ({x_min},{y_min}) to ({x_max},{y_max})")
     sub_grid_points = {} # Clear previous sub-grid points
 
     # Clear main grid elements
@@ -104,14 +103,16 @@ def draw_sub_grid(canvas, x_min, y_min, x_max, y_max):
     sub_height = y_max - y_min
 
     # Calculate spacing within the sub-grid area based on defined dimensions
+    # These calculations now use the swapped SUB_GRID_COLS and SUB_GRID_ROWS
     sub_x_spacing = sub_width / SUB_GRID_COLS
     sub_y_spacing = sub_height / SUB_GRID_ROWS
 
     select_key_index = 0 # Index into SUB_GRID_SELECT_KEYS
 
     # Calculate positions and draw labels using the defined grid structure
-    for r_idx in range(SUB_GRID_ROWS):
-        for c_idx in range(SUB_GRID_COLS):
+    # The loops now reflect 6 rows and 4 columns
+    for r_idx in range(SUB_GRID_ROWS): # Outer loop iterates 6 times (rows)
+        for c_idx in range(SUB_GRID_COLS): # Inner loop iterates 4 times (columns)
             if select_key_index < len(SUB_GRID_SELECT_KEYS):
                 sub_label = SUB_GRID_SELECT_KEYS[select_key_index] # Get the single letter
 
@@ -135,10 +136,12 @@ def draw_sub_grid(canvas, x_min, y_min, x_max, y_max):
 
     # Optionally draw sub-grid lines
     line_color = "grey"
-    for i in range(1, SUB_GRID_COLS):
+    # Draw vertical lines (separating columns)
+    for i in range(1, SUB_GRID_COLS): # Loops 3 times for 4 columns
         x = x_min + i * sub_x_spacing
         canvas.create_line(int(x), y_min, int(x), y_max, fill=line_color, width=1, tags="sub_gridline")
-    for i in range(1, SUB_GRID_ROWS):
+    # Draw horizontal lines (separating rows)
+    for i in range(1, SUB_GRID_ROWS): # Loops 5 times for 6 rows
         y = y_min + i * sub_y_spacing
         canvas.create_line(x_min, int(y), x_max, int(y), fill=line_color, width=1, tags="sub_gridline")
 
@@ -274,6 +277,6 @@ print("\n--- Ready for Input ---")
 print(f"Mode: {selection_mode}")
 print(f"Main Row Keys: {ROW_KEYS}")
 print(f"Main Col Keys: {COL_KEYS}")
-print(f"Sub-Grid Select Keys ({SUB_GRID_ROWS}x{SUB_GRID_COLS}): {SUB_GRID_SELECT_KEYS}")
+print(f"Sub-Grid Select Keys ({SUB_GRID_ROWS} rows x {SUB_GRID_COLS} cols): {SUB_GRID_SELECT_KEYS}") # Updated print statement
 
 root.mainloop()
