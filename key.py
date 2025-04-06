@@ -4,7 +4,7 @@ import pyautogui # For clicking and screen size
 
 # --- Configuration ---
 ROW_KEYS = "QWERTASDFGZXCVB" # Keys defining Rows (e.g., Q*, W*, E*...)
-COL_KEYS = "YUIOPHJKL;NM,./" # Keys defining Columns (e.g., *H, *J, *K...)
+COL_KEYS = "YUIOPHJKLNM" # Keys defining Columns (e.g., *H, *J, *K...)
 
 # Appearance
 GRID_ALPHA = 0.5       # Transparency (0.0=invisible, 1.0=opaque) - Set in original code
@@ -20,26 +20,6 @@ grid_points = {} # Dictionary to store { "label": (x, y) }
 highlight_oval_id = None
 
 ########################################
-
-class VisibilityHandler:
-    def __init__(self, root):
-        self.root = root
-        self.is_minimized = True
-
-        # Start minimized
-        # self.root.withdraw()
-        # self.root.update()
-        # self.root.iconify()
-
-    def minimize(self):
-        self.root.iconify()
-        self.is_minimized = True
-
-    def maximize(self):
-        self.root.deiconify()
-        self.root.state('zoomed')  # 'zoomed' maximizes on Windows
-        self.is_minimized = False
-
 
 def calculate_and_draw_labels(canvas, screen_width, screen_height):
     """Calculates grid points, stores them, and draws labels."""
@@ -90,6 +70,14 @@ def click(target_x, target_y):
         # root.deiconify()
         # root.focus_force()
 
+def move(target_x, target_y):
+    try:
+        print(f"*** Executing pyautogui.moveTo({target_x}, {target_y}) ***")
+        pyautogui.moveTo(target_x, target_y)
+        print("*** Move executed. ***")
+    except Exception as e:
+        print(f"!!! Error during pyautogui.moveTo: {e} !!!")
+
 def on_key(event, root, canvas):
     """Handles key presses for coordinate input, clicking, or closing."""
     global input_sequence, grid_points, highlight_oval_id, handler # Access global state
@@ -134,7 +122,7 @@ def on_key(event, root, canvas):
 
                 print("Withdrawing window...")
                 root.withdraw()
-                root.after(50, lambda: click(target_x, target_y))
+                root.after(50, lambda: move(target_x, target_y))
                 input_sequence = ""
             else: # Should not happen if keys are validated
                 print(f"Error: Target label '{target_label}' somehow invalid.")
@@ -143,6 +131,8 @@ def on_key(event, root, canvas):
         else: # Invalid second key
             print(f"Invalid second key '{key_to_check}'. Resetting.")
             input_sequence = ""
+
+        root.after(50, root.destroy)
     else: # Sequence already complete, reset on new key press
          print("Sequence already complete or > 1 key. Resetting.")
          input_sequence = ""
@@ -153,7 +143,6 @@ def on_key(event, root, canvas):
              print(f"Starting new sequence with '{key_to_check}'.")
          else:
              print(f"Invalid key '{key_to_check}' to start new sequence.")
-
 
 
 root = tk.Tk()
@@ -179,71 +168,7 @@ calculate_and_draw_labels(canvas, screen_width, screen_height)
 
 
 root.bind('<Key>', lambda event: on_key(event, root, canvas))
-
-handler = VisibilityHandler(root)
 root.mainloop()
-
-
-
-
-# import keyboard
-#
-# def on_hotkey():
-#     print("AltGr + Tab was pressed!")
-#
-# # Try with AltGr
-# keyboard.add_hotkey('ctrl+shift+/', on_hotkey)
-#
-# print("Listening for AltGr + Tab... Press ESC to quit.")
-# keyboard.wait('esc')
-#
-#
-
-
-
-# last_key = None
-# last_press_timestamp = None
-# grid_open = False
-#
-# def on_key(event):
-#     global last_key, last_press_timestamp, grid_open
-#     print(f"Key pressed: {event.keysym}")
-#     if event.keysym == "Escape":
-#         root.destroy()
-#
-#     if (last_press_timestamp is not None
-#         and event.time - last_press_timestamp < 400
-#         and last_key == 'ISO_Level3_Shift'
-#         and event.keysym == 'Tab'):
-#         grid_open = True
-#
-#     last_key = event.keysym
-#     last_press_timestamp = event.time
-#     print(grid_open)
-#     print(event.time)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
